@@ -375,13 +375,13 @@ yardstick::roc_curve(tree1c.pr.perf, actual, Open) %>%
 
 ```{r pred, echo=FALSE}
 # Make predictions on the test data and check the accuracy of the model
-predicted.classes <- tree1 %>% 
-    predict(data.test.frep, type = "class")
+predicted.classes <- tree1c %>% 
+    predict(data.test.final, type = "class")
 
 head(predicted.classes)
 
 # Compute model accuracy rate on test data
-mean(predicted.classes == data.test.frep$open_at_work)
+mean(predicted.classes == data.test.final$open_at_work) ## 0.88
 
 ```
 
