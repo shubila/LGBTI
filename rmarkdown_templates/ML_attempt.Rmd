@@ -1,0 +1,469 @@
+---
+title: "ML attempt"
+author: "asa"
+date: '2021-02-12'
+output: html_document
+#knit: (function(inputFile, encoding) {
+#  rmarkdown::render(inputFile, encoding = encoding,output_file = "ML.html", output_dir = "../paper") })
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+# code for checking predictors
+if(!require(tidyverse)) install.packages("tidyverse")
+if(!require(summarytools)) install.packages("summarytools")
+if(!require(sjlabelled)) install.packages("sjlabelled")
+if(!require(kableExtra)) install.packages("kableExtra")
+sapply(c("tidyverse","summarytools","sjlabelled", "kableExtra"), library, character.only = TRUE)
+#library(tidyverse)
+#library(summarytools)
+#library(sjlabelled)
+#library(kableExtra)
+
+```
+
+```{r interest_url, echo=FALSE, include=FALSE}
+## https://www.r-bloggers.com/2019/06/working-with-spss-labels-in-r/
+## Reference url for methods: https://www.statmethods.net/advstats/cart.html
+## Reference for the code: http://www.sthda.com/english/articles/35-statistical-machine-learning-essentials/141-cart-model-decision-tree-essentials/
+## SHOULD BE READ: https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf
+```
+
+```{r data_label, echo=FALSE, include=FALSE}
+
+# Step 1. Load data saved (following the "generate_clean_data.R)
+lgbti_dta <- readRDS("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_dta.rds")
+lgbti_sav <- readRDS("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_sav.rds")
+
+# Step 2. Extract question labels from the .dta dataset and put them to the sav dataset
+# a. Derive variable labels from the .dta dataset
+var_labs <- map_chr(lgbti_dta, ~ attributes(.)$label)
+# b. Attach labels to the .sav dataset
+lgbti_sav <- set_label(lgbti_sav,var_labs)
+```
+
+```{r data_code, echo=FALSE, include=FALSE}
+library(haven)
+## Alternatively import data in coded format (haven::read_sav)
+data_coded <- read_sav("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/raw/ZA7604_v1-0-0.sav")
+
+## Step 1. Quick look at the data format
+data_coded %>% 
+  .[,1:20] %>%  # First 20 columns
+  glimpse() ## <dbl+lbl></dbl+lbl> signifies that these variables have labels associated to the numeric values they hold
+
+## Step 2. Extract HTML document fully describing the data, their categories and answer options
+library(sjPlot) #sjPlot is required
+var_desc<-data_coded %>% sjPlot::view_df() 
+print(var_desc)
+```
+```{r data_code, echo=FALSE, include=FALSE}
+## Numeric variables that have been inserted as factors
+lgbti_sav$A13<-as.numeric(lgbti_sav$A13)
+lgbti_sav$A14<-as.numeric(lgbti_sav$A14)
+
+```
+
+
+
+```{r train_test_datasets, echo=FALSE, include=FALSE}
+## 1st Function: First approach to create a training and test dataset
+######################  
+## NOTE: There are alternative ways of producing the train dataset, e.g. giving probabilities. Currently we keep it simple
+######################  
+
+train_test_sets<-function(data, seed, perc_sample){
+## Data: input data to be subsetted to create the training and test datasets
+## seed: Specify initial value for the seed
+## perc_sample: the percentage of the sample size to be taken for specifying the size of the train dataset
+set.seed(seed)
+data_excl<- data %>% filter(!is.na(open_at_work)) ## Does this work for the labeled data?
+sample <- sample.int(n = nrow(data_excl), size = floor(perc_sample*nrow(data_excl)), replace = F)
+data_train <- data_excl[sample, ]
+data_test <- data_excl[-sample, ]
+res<-list( "data_train" = data_train, "data_test"=data_test)
+return(res)
+}
+
+## Call the function ##
+## In case of a coded dataset (loaded for confirmatory purposes)
+#data_all<-train_test_sets(data_coded, seed=123, perc_sample=0.10)
+#data.train<-data_all$data_train
+
+## In case of a dataset with labels
+data_all<-train_test_sets(lgbti_sav, seed=123, perc_sample=0.7)
+data.train<-data_all$data_train
+data.test<-data_all$data_test
+
+# data.test<-data_all$data_test
+##lgbti_sav[is.na(lgbti_sav$open_at_work),509:510]
+#summary(data.train$open_at_work)
+#summary(data_all$data_test$open_at_work)
+```
+
+```{r predictors, echo=FALSE}
+## 2nd Function: Subsetting the dataset for selecting target variable and predictors
+
+data_target<-function(data, target_var, predictors){
+data_sel <- data %>%
+            filter(!is.na(!!as.name(target_var))) %>% ## do not consider rows where the predictor is NA
+            select(c(!!as.name(target_var), !!(predictors)))
+
+return(data_sel)
+}
+                             
+## Call the function (currently a limited subset of predictors are considered for testing purposes)
+
+## Training dataset
+## !! A13, A14 is numeric but is stored as factor in the dataset
+## F_G sections not considered
+
+pred_var<-c("RESPONDENT_CATEGORY","A1", "A2", "A10", "A11", "A11_1", "A13", "A14", "B1", "B2", "C1_A", "C1_B", "C1_C", "C1_D", "C1_E", "C1_F", "C1_G", "C1_H", "C2", "C6", "C8_A", "C8_B", "C8_C", "C8_D",  "C9_1", "C10_A", "C10_B", "C10_1", "C11_A", "C11_B", "C11_C", "C11_D", "C11_E", "C11_G", "C11_H", "C11_I","D1", "D2", "D4", "E1", "E2", "E8", "F1_A", "F1_B", "F1_C", "F1_D", "F1_E", "F1_E", "F1_G","F8", "G1_A", "G1_B", "G1_C", "G1_D", "G1_E", "G1_F", "G1_G", "G1_H",  "G2",  "H1", "H2", "H3", "H4", "H5", "H7", "H10", "H17", "H18", "H19", "H20") 
+
+data.train.f<- data_target(data.train, target_var = "open_at_work", predictors = pred_var)
+## Test dataset
+
+data.test.f<- data_target(data.test, target_var = "open_at_work", predictors = pred_var)
+
+## Check the output that includes all target variables
+head(data.train.f)
+## Check whether NAs are included in the response variable (normally now should have been removed)
+table(data.train.f$open_at_work,useNA = "always")
+table(data.test.f$open_at_work,useNA = "always")
+
+## Other useful variables currenntly not included for testing purposes
+##variables initially included: c("H1", "H2", "H3", "H6", "H7", "H8", "H9", "H10")
+## "H7:H10", "H13", "H16:H20"
+#(EXCLUDE H6_1)
+```
+
+```{r acc_val, echo=FALSE}
+## 3d Function: Check for acceptable values
+##########################################
+## NOTE: Throughout the dataset,we have the following special values:
+## -999: Don't know
+## -777: Does not apply to me
+## -888: Prefer not to say
+## -1: Missing (for limited questions, applied only to "Other" category: "Please specify". So it is not a problem)
+## -2: Not applicable
+##########################################
+## We should check for "-2" values in the set of auxiliary variables; Those should be probably converted to NA's
+## Check if we have more variables, whether we should also insert an argument for specifying specific columns to be applied
+repl_val<-function(data, val){
+data<- data %>% 
+   na_if(val) ##replace with NAs, the indicated values
+return(data)
+}
+## Call the function
+## In case that we use the dataset with coded values (now checked for testing purposes)
+#data.train.frep<-repl_val(data.train.f,c(-2))
+
+## In case that we use the dataset with the labels
+## Training dataset
+data.train.frep<-repl_val(data.train.f,c("Not applicable"))
+table(data.train.frep$open_at_work,useNA = "always")
+
+## Test dataset
+data.test.frep<-repl_val(data.test.f,c("Not applicable"))
+table(data.test.frep$open_at_work,useNA = "always")
+```
+
+
+```{r reclass, echo=FALSE}
+## 4th Function: Group response variable into two categories
+regroup<-function(data, target_var){
+data<- data %>% 
+  mutate(!!as.name(target_var) := dplyr::recode(!!as.name(target_var), 'Very open'="Open", 'Selectively open'="Open"))
+return(data)
+}
+
+## Call the function
+## In case that we use the dataset with the labels
+## Training dataset
+data.train.final<-regroup(data.train.frep, target_var="open_at_work")
+table(data.train.final$open_at_work,useNA = "always")
+
+## Test dataset
+data.test.final<-regroup(data.test.frep, target_var="open_at_work")
+table(data.test.final$open_at_work,useNA = "always")
+```
+
+
+```{r tree_ML_test, echo=FALSE}
+## Decision tree algorithm -- CART
+library(rpart)
+
+#### NOTE: Explanation of the parameters in the rpart formula ###
+# Cp: complexity parameter --> avoids splitting those nodes that are obviously not worthwhile. 
+# Cp value shall be determined after “growing the tree” and the optimal value is used to “prune the tree.”
+# Cp: The default value is 0.01
+# Cp: imposes a penalty to the tree for having two many splits. The higher the cp, the smaller the tree.
+
+# minsplit: The minimum split criterion is the minimum number of records that must be present in a node before a split can be attempted
+#######################################################
+
+
+## Step 1. Run the algorithm: Dataset including 3-levels for "open at work"
+#######################################################
+## STOP: If we do not restrict the Cp parameter, then we will receive the error below:
+## Error in plot.rpart(tree1) : fit is not a tree, just a root.
+## This occurs when the independent variables do not provide enough information to grow the tree. See, for example, the help for rpart. control: "Any split that does not decrease the overall lack of fit by a factor of cp is not attempted." 
+## Trying loosening the control parameters, may result in the tree growing beyond a root.
+#######################################################
+tree1<-rpart(formula = open_at_work ~ ., data=data.train.frep,    method = "class")
+
+## Step 2. Run the algorithm (by relaxing the Cp criterion) --> this worked
+## Note: We have worked with the data where "Not applicable" have been replaced as NAs. 
+# Assumption: The algorithm understands NAs in factor variables
+set.seed(1)
+tree1<-rpart(formula = open_at_work ~ ., data=data.train.frep[1:10,], method = "class", parms= list(split = "information"), control = rpart.control(minsplit=1,cp=0.005, maxdepth=10 , usesurrogate= 0, maxsurrogate= 0))
+
+## Step 3. Explore the results
+## a. Complexity table (shows number of splits, errors, etc.)
+## Currently the error in the last split is relatively high: 67%
+## Correctly classifies 45% of the cases
+printcp(tree1)
+## b. Detailed splitting process, Variables' importance, errors, etc.
+summary(tree1)
+## c. Plot results
+par(xpd = NA) # otherwise on some devices the text is clipped
+plot(tree1)
+text(tree1,cex=0.5)
+
+library(rpart.plot)
+prp(tree1, type=2, extra=1)
+## Another more fancy way of plotting the tree
+library(rattle)
+res.plot<-fancyRpartPlot(tree1, main="Decision Tree tree train$open_at_work")
+## Another way of plotting, this library gives more possibilities for parameterisation: http://www.milbo.org/rpart-plot/prp.pdf
+library(rpart.plot)
+rpart.plot(tree1)
+## d. Shows specifically variable importance
+tree1$variable.importance
+## e. Plot relative error
+plotcp(tree1)
+
+########################################################
+### Step 1. Run the procedure for the grouped target variable: "Open", "Hide LGBTI"
+set.seed(1)
+
+## Start with the model, using the default cp value: 0.01. A higher value in the complexity parameter, corresponds to a tree with just a root node
+
+tree1b<-rpart(formula = open_at_work ~ ., data=data.train.final,  method = "class", parms= list(split = "information"), control = rpart.control(minsplit=1,cp=0.01, maxdepth=10 , usesurrogate= 0, maxsurrogate= 0))
+
+## Step 2. Explore the results
+## a. Complexity table (shows number of splits, errors, etc.)
+## Currently the error in the last split is relatively high: 34%
+## Missclassifies the 23% of cases
+## Grouping has led to the improvement of the model performance
+## BUT we have minimised parameters affecting "Hide LGBTI" 
+printcp(tree1b)
+
+## b. Detailed splitting process, Variables' importance, errors, etc.
+summary(tree1b)
+
+## c. Plot results
+par(xpd = NA) # otherwise on some devices the text is clipped
+plot(tree1b)
+text(tree1b,cex=0.5)
+## Another more fancy way of plotting the tree
+library(rattle)
+res.plot<-fancyRpartPlot(tree1b, main="Decision Tree tree train$open_at_work")
+## Another way of plotting, this library gives more possibilities for parameterisation: http://www.milbo.org/rpart-plot/prp.pdf
+library(rpart.plot)
+rpart.plot(tree1b)
+
+## d. Shows specifically variable importance
+tree1b$variable.importance
+
+## e. Plot relative error
+plotcp(tree1b, upper="splits")
+
+
+########################################################
+# Towards this approach to be adopted
+########################################################
+## Step 3. Run the model for the grouped outcome variable, by restricting cp to a lower value (i.e. permitting the tree to grow with more nodes). We run a more detailed tree and then prune it. 
+
+set.seed(1)
+tree1c<-rpart(formula = open_at_work ~ ., data=data.train.final,  method = "class", parms= list(split = "information"), control = rpart.control(minsplit=1,cp=0.001, maxdepth=10 , usesurrogate= 0, maxsurrogate= 0))
+
+## Step 4. Explore the results
+printcp(tree1c)
+
+## b. Detailed splitting process, Variables' importance, errors, etc.
+summary(tree1c)
+
+## c. Plot results
+par(xpd = NA) # otherwise on some devices the text is clipped
+plot(tree1c)
+text(tree1c,cex=0.5)
+## Another more fancy way of plotting the tree
+library(rattle)
+res.plot<-fancyRpartPlot(tree1c, main="Decision Tree tree train$open_at_work")
+
+## d. Plot relative error
+plotcp(tree1c, upper="splits")
+##???##
+treeInfo(tree1c$finalModel, tree = 1)
+
+## e. Variable importance
+round(tree1c$variable.importance,1)
+
+## f. Plot for Variable importance
+tree1c$variable.importance %>% 
+   data.frame() %>%
+   rownames_to_column(var = "Feature") %>%
+   rename(Overall = '.') %>%
+   ggplot(aes(x = fct_reorder(Feature, Overall), y = Overall)) +
+   geom_pointrange(aes(ymin = 0, ymax = Overall), color = "cadetblue", size = .3) +
+   theme_minimal() +
+   coord_flip() +
+   labs(x = "", y = "", title = "Variable Importance with Simple Classication")
+
+########################################################
+## Step 4. Prune the tree. 
+########################################################
+#The decision on which node we should restrict the pruning should be taken on the basis of the relative error plot. We try to find a min value (below the dashed line)
+## We have chosen 23 now, but this is not a clear minimum in the graph
+node.c<-23
+tree1c.pr <- prune(
+   tree1c,
+   cp = tree1c$cptable[tree1c$cptable[, 2] == node.c, "CP"]
+)
+## Step 5. Explore the results
+printcp(tree1c.pr)
+rpart.plot(tree1c.pr, yesno = TRUE)
+tree1c.pr$variable.importance
+plot(tree1c.pr)
+text(tree1c.pr,cex=0.5)
+
+## Step 6. Measuring performance ###
+
+## a. Derive confusion matrix
+tree1c.pr.perf <- bind_cols(
+   predict(tree1c.pr, newdata = data.test.final, type = "prob"),
+   predicted = predict(tree1c.pr, newdata = data.test.final, type = "class"),
+   actual = data.test.final$open_at_work
+)
+
+tree1c.pr.perf.ass <- caret::confusionMatrix(tree1c.pr.perf$predicted, reference = tree1c.pr.perf$actual)
+tree1c.pr.perf.ass ## Shows a quite good accuracy of 0.88
+
+
+## b. plot of the confusion matrix (actually we plot predicted vs. actual values)
+plot(tree1c.pr.perf$actual, tree1c.pr.perf$predicted, 
+     main = "Simple Classification: Predicted vs. Actual",
+     xlab = "Actual",
+     ylab = "Predicted")
+
+## c. ROC Curve
+library(Metrics)
+library(yardstick)
+
+mdl_tree1c.pr <- Metrics::auc(actual = tree1c.pr.perf$actual == "Open", tree1c.pr.perf$Open)
+
+yardstick::roc_curve(tree1c.pr.perf, actual, Open) %>%
+  autoplot() +
+  labs(
+    title = "OJ CART ROC Curve",
+    subtitle = paste0("AUC = ", round(mdl_tree1c.pr, 4)))
+
+
+```
+
+```{r pred, echo=FALSE}
+# Make predictions on the test data and check the accuracy of the model
+predicted.classes <- tree1c %>% 
+    predict(data.test.final, type = "class")
+
+head(predicted.classes)
+
+# Compute model accuracy rate on test data
+mean(predicted.classes == data.test.final$open_at_work) ## 0.88
+
+```
+
+```{r prune, echo=FALSE}
+## Pruning the tree
+## CONCEPT: An optimal Cp value can be estimated by testing different cp values and using cross-validation approaches to determine the corresponding prediction accuracy of the model. The best cp is then defined as the one that maximize the cross-validation accuracy 
+# Pruning can be performed in the caret package
+library(caret)
+set.seed(123)
+
+# Step 1. Fit the model on the training set
+# trControl: to set up 10-fold cross validation
+# Number: stands for the number of resampling iterations
+# tuneLength: stands for the number of possible Cp values to evaluate (default=3)
+
+
+## FAILS TO RUN, is it b/c of numeric variables? 
+# In the forums it is mentioned " Remove all categorical variables that have more than 53 levels"
+
+tree2 <- caret::train(open_at_work ~., data = data.train.final, method = "rpart",
+  trControl = trainControl("cv", number = 40, returnResamp = "all", savePredictions = "all"),tuneLength = 20, na.action = na.omit)
+
+tree2$results
+
+
+# Step 2. Plot model accuracy vs different values of Cp (complexity parameter)
+plot(tree2)
+
+# Step 3.Print the best tuning parameter Cp that maximizes the model accuracy
+tree2$bestTune ## it gives as a best value a cp=0.066, which is much higher than the ones already used
+
+# Step 4. Plot the final tree model
+## This did not work well, we end up with a tree with a limited number of nodes
+par(xpd = NA)
+plot(tree2$finalModel)
+text(tree2$finalModel)
+
+# Step 5. Make predictions on the test data and check the accuracy of the model
+predicted.classes2 <- tree2 %>% 
+    predict(data.test.frep)
+head(predicted.classes)
+
+# Step 6. Compute model accuracy rate on test data
+mean(predicted.classes2 == data.test.final$open_at_work) 
+## We end up with worse accuracy but it uses only a single variable.
+
+tree3<-rpart(formula = open_at_work ~ ., data=data.train.final,  method = "class", parms= list(split = "information"), control = rpart.control(minsplit=1,cp=0.06574576, maxdepth=10 , usesurrogate= 0, maxsurrogate= 0))
+printcp(tree3) ## It keeps only the first variable "G1_D", which explains the most variance
+```
+
+```{r pred, echo=FALSE}
+
+
+```
+
+
+
+### HAVE NOT WORKED IN DETAIL IN THE FOLLOWING. THOSE WERE INITIAL TRIALS
+```{r tree2_ML, echo=FALSE,include=FALSE}
+library(party)
+set.seed(123)
+
+#myformula<-open_at_work ~ H1:H6 + H7:H10 + H13 + H16:H20
+tree3<-ctree(open_at_work ~., data = data.train.frep)
+  
+
+##explore results
+## Shows the splitting process, Variables' importance
+print(tree3)
+# plot the resulting tree
+plot(tree3,type="simple")
+
+
+##table(predict(tree1),train_h$open_at_work) --> does not work , needs some processing
+```
+
+
+
+```{r tree_ML, echo=FALSE, include=FALSE}
+library(randomForest)
+
+tree4<-randomForest(open_at_work ~. ,data = data.train.frep, na.action = na.roughfix)
+print(tree4)
+importance(tree4)
+```
