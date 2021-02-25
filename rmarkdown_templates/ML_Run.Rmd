@@ -22,24 +22,15 @@ library(haven)
 ## Alternatively import data in coded format (haven::read_sav)
 # Step 1. Load data saved (following the "generate_clean_data.R)
 lgbti_sav <- readRDS("~/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_sav.rds")
-lgbti_dta <- readRDS("~/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_dta.rds")
-# Step 2. Extract question labels from the .dta dataset and put them to the sav dataset
-# a. Derive variable labels from the .dta dataset
-var_labs <- map_chr(lgbti_dta, ~ attributes(.)$label)
-# b. Attach labels to the .sav dataset
-data_coded <- set_label(lgbti_sav,var_labs)
+
+# Step 2. Load the coded dataset to show the variables
+data_coded <- read_sav("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/raw/ZA7604_v1-0-0.sav")
 ## Step 3. Extract HTML document fully describing the data, their categories and answer options
 library(sjPlot) #sjPlot is required
 var_desc<-data_coded %>% sjPlot::view_df() 
 print(var_desc)
 ```
 
-
-```{r data_label, echo=FALSE, include=FALSE}
-
-# Step 1. Load data saved (following the "generate_clean_data.R)
-lgbti_sav <- readRDS("~/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_sav.rds")
-```
 
 ```{r train_test_datasets, echo=FALSE, include=FALSE}
 ## 1st Function: First approach to create a training and test dataset
