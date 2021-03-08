@@ -33,8 +33,8 @@ sapply(c("tidyverse","summarytools","sjlabelled", "kableExtra"), library, charac
 ```{r data_label, echo=FALSE, include=FALSE}
 
 # Step 1. Load data saved (following the "generate_clean_data.R)
-lgbti_dta <- readRDS("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_dta.rds")
-lgbti_sav <- readRDS("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/clean/lgbti_sav.rds")
+lgbti_dta <- readRDS("./data/clean/lgbti_dta.rds")
+lgbti_sav <- readRDS("./data/clean/lgbti_sav.rds")
 
 # Step 2. Extract question labels from the .dta dataset and put them to the sav dataset
 # a. Derive variable labels from the .dta dataset
@@ -46,7 +46,7 @@ lgbti_sav <- set_label(lgbti_sav,var_labs)
 ```{r data_code, echo=FALSE, include=FALSE}
 library(haven)
 ## Alternatively import data in coded format (haven::read_sav)
-data_coded <- read_sav("~/Dropbox/My Mac (Anais iMac NEW)/Desktop/Master Project/Data/LGBTI/data/raw/ZA7604_v1-0-0.sav")
+data_coded <- read_sav("./data/raw/ZA7604_v1-0-0.sav")
 
 ## Step 1. Quick look at the data format
 data_coded %>% 
@@ -58,7 +58,7 @@ library(sjPlot) #sjPlot is required
 var_desc<-data_coded %>% sjPlot::view_df() 
 print(var_desc)
 ```
-```{r data_code, echo=FALSE, include=FALSE}
+```{r data_code2, echo=FALSE, include=FALSE}
 ## Numeric variables that have been inserted as factors
 lgbti_sav$A13<-as.numeric(lgbti_sav$A13)
 lgbti_sav$A14<-as.numeric(lgbti_sav$A14)
@@ -432,7 +432,7 @@ tree3<-rpart(formula = open_at_work ~ ., data=data.train.final,  method = "class
 printcp(tree3) ## It keeps only the first variable "G1_D", which explains the most variance
 ```
 
-```{r pred, echo=FALSE}
+```{r pred2, echo=FALSE}
 
 
 ```
