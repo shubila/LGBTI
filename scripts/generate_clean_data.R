@@ -7,6 +7,7 @@ rm(list = ls(all.names = TRUE))
 library(foreign)
 library(haven)
 library(tidyverse)
+library(naniar)
 
 # Read the raw files, .dta and .sav 
 
@@ -14,5 +15,116 @@ lgbti_dta <- read_dta("./data/raw/ZA7604_v1-0-0.dta")
 
 lgbti_sav <- as.data.frame(read.spss("./data/raw/ZA7604_v1-0-0.sav"))
 
-saveRDS(lgbti_dta,"./data/clean/lgbti_dta.rds")
+
+# tidy up the data so that we can have a clean dataset to directly run the ML.
+# To generate a clean dataset it is the easiest to use the SPSS dataset as starting point
+
+# ------------------------- columns------------------------------------------------------
+
+# We start by selecting the variables we will actually use 
+
+cols <-
+  c(
+    
+    # section A
+     "A1","A7","A10","A10_1","A13","A14",
+    # section B
+    "B1","B2","B5",
+    # section C
+    "C1_A","C1_B","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H","C7_A","C7_B","C8_A","C8_B","C8_C","C8_D",
+    "C9_1","C10_A","C10_B","C10_1","C11_A","C11_B","C11_C","C11_D","C11_E","C11_F","C11_G","C11_H",
+    "C11_I","C12","C13_A_VALUE",
+    # section D
+    "D1","D2","D4",
+    # section E
+    "E1",
+    # section F
+    "F1_A","F1_B","F1_C","F1_D","F1_E","F1_F","F1_G",
+    # section G
+    "G1_A","G1_B","G1_C","G1_E","G1_H","G2",
+    # section H
+    "H1","H2","H3","H4","H10","H12_A","H12_B","H12_C",
+    "H12_D","H12_E","H15_A","H15_B","H15_C","H15_D","H15_E","H15_F","H16",
+    "H17","H18","H19","H21_1","H21_2","H21_3","H21_4","H21_5",
+    # section I
+    "I1_A","I1_B","I1_C","I1_D","I1_E","I1_F","I1_G","I1_H","I1_I","I2_A",
+    "I2_B","I2_C","I2_D","I3_A","I3_B","I3_C","I3_D", "I3_E",
+    # derived and other variables
+    "QST_TOTAL_DURATION","open_at_work","RESPONDENT_ID","RESPONDENT_CATEGORY"
+  )
+
+# keep only the listed variables above
+
+lgbti_ML <- lgbti_sav %>% 
+  select(all_of(cols))
+
+#----------------------------- rows ---------------------------------------------
+
+# Replace all "Do not know" for the factors of the dataset. 
+# For the variable H3 I found the factor levels "-999" and "-888" so converting "-888" to "Prefer not to say"
+
+lgbti_ML <- lgbti_ML %>%  
+  mutate(across(where(is.factor), ~ fct_recode(.,NULL = "Don’t know",
+                                                 NULL = "Do not know",
+                                                 NULL = "-999",
+                                                 NULL = "Missing",
+                                               `Prefer not to say`= "-888")))
+
+
+#--------------------------- sections ------------------------------------------
+
+
+#  Section A
+
+
+# set A13 to numeric
+
+lgbti_ML$A13 <- as.numeric(as.character(lgbti_ML$A13))
+
+# make age groups out of A14 and keep the category "I have not told anybody"
+
+A14_df <- lgbti_dta %>%
+  select(RESPONDENT_ID,A14)%>%
+  mutate(A14_fct = as.factor(case_when(A14 == -998           ~ "I have not told anybody",
+                                       A14 == -999           ~ NA_character_,
+                                       A14 == -2             ~ NA_character_,
+                                       A14 <= 14             ~    "-14",
+                                       A14 >= 15 & A14 <= 17 ~  "15-17",
+                                       A14 >= 18 & A14 <= 24 ~  "18-24",
+                                       A14 >= 25 & A14 <= 29 ~  "25-29",
+                                       A14 >= 30 & A14 <= 34 ~  "30-34",
+                                       A14 >= 35 & A14 <= 39 ~  "35-39",
+                                       A14 >= 40 & A14 <= 44 ~  "40-44",
+                                       A14 >= 45 & A14 <= 49 ~  "45-49",
+                                       A14 >= 50 & A14 <= 54 ~  "50-54",
+                                       A14 >= 55 & A14 <= 59 ~  "55-59",
+                                       A14 >= 60 & A14 <= 64 ~  "60-64",
+                                       A14 >= 65             ~    "65+",
+                                       TRUE  ~ as.character(A14)))) %>%
+                                        select(RESPONDENT_ID,A14_fct)
+
+lgbti_ML <- inner_join(lgbti_ML,A14_df, by = "RESPONDENT_ID")
+
+
+#---------------------------- set the dependent variable to binary by combining the open categories------------------
+
+
+
+lgbti_ML$open_at_work <- fct_collapse(
+  lgbti_ML$open_at_work,
+  Hide = "Hide being LGBTI",
+  Open = c("Very open", "Selectively open")
+)
+
+
+# ------------------------- filter out population of interest, drop NA:s  and unused factor levels ----------------
+
+# filter population of interest
+lgbti_ML <- lgbti_ML %>%
+  select(-one_of("A14","RESPONDENT_ID")) %>%
+  drop_na() %>%
+  droplevels()
+
 saveRDS(lgbti_sav,"./data/clean/lgbti_sav.rds")
+saveRDS(lgbti_dta,"./data/clean/lgbti_dta.rds")
+saveRDS(lgbti_ML,"./data/clean/lgbti_ML.rds")

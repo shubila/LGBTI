@@ -1,0 +1,251 @@
+---
+title: "ML_logistic"
+author: "Shubila Balaile"
+date: '2021-03-06'
+output: 
+      html_document:
+        number_sections: yes
+        toc : yes
+        
+---
+## Loading of packages
+
+```{r setup,warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(pROC)
+
+```
+
+## Data
+
+The data for this run is prepared in the script "generate_clean_data.R" in the "scripts" folder.  
+The predictors have been chosen after looking through the questionnaire section by section.  
+Because of elaborated skipping patterns in the questionnaire there is a clear "trade-off" between including variables and losing observations.  
+
+```{r load_data,warning = FALSE}
+
+#clear the global environment
+rm(list = ls(all.names = TRUE))
+# load data
+lgbti_ML <- readRDS("../data/clean/lgbti_ML.rds")
+# Show dimensions
+dim(lgbti_ML)
+
+
+```
+The data set contains `r dim(lgbti_ML)[1]` rows and `r dim(lgbti_ML)[2]` variables of which one is our dependent variable and the rest predictors.   
+The variables are:  
+`r names(lgbti_ML)`.
+
+## Training and test set
+
+We start by splitting our data into a training and test set by applying the createDataPartition() function from the caret package.  
+Specifically, we conduct a 70-30 percent split based on the percentiles of our outcome variable, `open_at_work`.  
+"Open_at_work" has been collapsed into a binary variable by putting "Very open" and "Selectively open" to equal 1 and 0 otherwise.
+From what I have read it seems 80-20 and 70-30 are the most common splits.  
+70-30 is the split they use in the paper "Machine Learning for Pattern Discovery in Management Research".
+
+```{r train_tes, warning = FALSE}
+
+set.seed(49043)
+inTrain <- createDataPartition(lgbti_ML$open_at_work, 
+                               p = .7, 
+                               list = FALSE, 
+                               times = 1)
+
+lgbti_train <- lgbti_ML[inTrain,]
+lgbti_test  <- lgbti_ML[-inTrain,]
+
+```
+
+This gives us a training set with `r dim(lgbti_train)[1]` rows and a test set with `r dim(lgbti_test)[1]` rows.  
+Next we setup our evaluation method.  
+From the advanced ML course of last summer I learnt that "the standard" is to use cross-validation.  
+If one uses CV the typical thing is to chose either 5 or 10 fold.  
+The more the folds the "better" the training  but also the more the iterations, which might be heavy on the computer performance. I first try out the 5 fold.  
+To generate the 5 fold CV I first start by generating a train control object using caret.  
+I then proceed to execute the training and tuning of hyper parameters.  
+The metric chosen for deciding on optimal hyper parameters is the ROC.  
+I know that other metrics can be used.  
+My impression is that ROC is popular and standard.  
+We will probably discuss this over and over until we think we are using the right metric.
+
+```{r}
+
+set.seed(49043)
+ctrl <- trainControl(method = "cv",
+                     number = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     verboseIter = TRUE)
+
+# logistic regression 
+
+system.time(
+m_logit <- train(open_at_work ~ .,
+                      data = lgbti_train,
+                      method="glm",family=binomial(),
+                      trControl = ctrl,
+                      metric = "ROC"
+                    )
+)
+
+# single decision tree - cart
+
+system.time(
+m_cart <- train(open_at_work ~ .,
+                      data = lgbti_train,
+                      method = "rpart2",
+                      trControl = ctrl,
+                      metric = "ROC")
+ )
+ 
+# random forest
+ 
+# set grid for hyper parameter mtry and min.node.size 
+ 
+ rf_grid <- expand.grid(mtry = c(round((ncol(lgbti_ML)-1)/3),
+                             round(log((ncol(lgbti_ML)-1)))),
+                              splitrule = "extratrees",
+                              min.node.size = 10)
+ 
+ system.time(
+ m_rf <- train(open_at_work ~ .,
+              data = lgbti_train,
+              method = "ranger",
+              trControl = ctrl,
+              tuneGrid = rf_grid,
+              metric = "ROC")
+ )
+ 
+ 
+ # Xgboost
+ 
+ # set grid for xgboost hyper parameters  
+ 
+ # xgb_grid <- expand.grid(max_depth = c(1, 3, 5,7,9),
+ #                    nrounds = c(250, 500, 1000),
+ #                    eta = c(0.05, 0.01),
+ #                    min_child_weight = 10,
+ #                    subsample = 0.7,
+ #                    gamma = 0,
+ #                    colsample_bytree = 1)
+ 
+# system.time(
+#  m_xgb <- train(open_at_work ~ .,
+#               data = lgbti_train,
+#               method = "xgbTree",
+#               trControl = ctrl,
+#               tuneGrid = xgb_grid,
+#               metric = "ROC")
+#  )
+ 
+ 
+ 
+ 
+ 
+ 
+```
+
+
+```{r}
+m_logit
+m_cart
+m_rf 
+#m_xgb 
+
+```
+
+
+## Comparison
+
+```{r}
+
+p_logit <- predict(m_logit, newdata = lgbti_test, type = "prob")
+c_logit <- predict(m_logit, newdata = lgbti_test, type = "raw")
+
+p_cart <- predict(m_cart, newdata = lgbti_test, type = "prob")
+c_cart <- predict(m_cart, newdata = lgbti_test, type = "raw")
+
+p_rf <- predict(m_rf, newdata = lgbti_test, type = "prob")
+c_rf <- predict(m_rf, newdata = lgbti_test, type = "raw")
+
+# p_xgb <- predict(m_xgb, newdata = lgbti_test, type = "prob")
+# c_xgb <- predict(m_xgb, newdata = lgbti_test, type = "raw")
+
+
+roc_logit <- roc(lgbti_test$open_at_work, p_logit$Open) 
+
+roc_cart <- roc(lgbti_test$open_at_work, p_cart$Open) 
+
+roc_rf  <- roc(lgbti_test$open_at_work, p_rf$Open) 
+
+#roc_xgb  <- roc(lgbti_test$open_at_work, p_xgb$Open) 
+
+
+#plot the roc curves
+
+ggroc(list("logit" = roc_logit ,"cart" = roc_cart,"rf" = roc_rf)) +
+  geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), color = "grey", linetype = "dashed") +
+   labs( subtitle = "ROC-AUC for the three classification models")
+
+
+ 
+```
+
+```{r}
+
+confusionMatrix(c_logit, lgbti_test$open_at_work, mode = "everything", positive = "Open")
+confusionMatrix(c_cart, lgbti_test$open_at_work, mode = "everything", positive = "Open")
+confusionMatrix(c_rf, lgbti_test$open_at_work, mode = "everything", positive = "Open")
+
+#confusionMatrix(c_xgb, lgbti_test$open_at_work, mode = "everything", positive = "Open")
+
+```
+
+
+
+```{r}
+
+lgbti_test$Open_logit <- p_logit$Open
+lgbti_test$Open_cart  <- p_cart$Open
+lgbti_test$Open_rf  <- p_rf$Open
+#lgbti_test$Open_xgb  <- p_xgb$Open
+
+ggplot(lgbti_test, aes(x = Open_logit)) + 
+  geom_histogram(binwidth = .05) + 
+  facet_wrap(~ open_at_work) + 
+  xlab("Probability of Open for logit")
+
+ggplot(lgbti_test, aes(x = Open_cart)) + 
+  geom_histogram(binwidth = .05) + 
+  facet_wrap(~ open_at_work) + 
+  xlab("Probability of Open for cart tree")
+
+ggplot(lgbti_test, aes(x = Open_rf)) + 
+  geom_histogram(binwidth = .05) + 
+  facet_wrap(~ open_at_work) + 
+  xlab("Probability of Open for Random forest")
+
+# ggplot(lgbti_test, aes(x = Open_xgb)) + 
+#   geom_histogram(binwidth = .05) + 
+#   facet_wrap(~ open_at_work) + 
+#   xlab("Probability of Open for X gradient boost")
+
+
+```
+
+## Conclusion
+
+Judging by the ROC-curves, the confusion matrices and the probabilities plots (performed also on the test set) I think the models perform very well.  
+One big relief is that in all of the confusion matrices we have a clearly better (at least in my mind) "accuracy" than the "no information rate".  
+Then we have really high "sensitivity", especially for the logit and the random forest, but a relatively low "specificity".  
+These two features is reflected in the probabilities plots.   
+The panel to the left in each graph by model looks good. The right panel not as much.  
+The logit looks the best!
+I was not able to run the XGBoost algorithm because it took to long.  
+I will retry again!
