@@ -37,6 +37,9 @@ lgbti_ML <- readRDS("../data/clean/lgbti_ML.rds")
 # Show dimensions
 dim(lgbti_ML)
 
+lgbti_ML <- lgbti_ML %>%
+  select(-one_of("open_at_work_multi"))
+
 
 ```
 The data set contains `r dim(lgbti_ML)[1]` rows and `r dim(lgbti_ML)[2]` variables of which one is our dependent variable and the rest predictors.   
@@ -54,7 +57,7 @@ From what I have read it seems 80-20 and 70-30 are the most common splits.
 ```{r train_tes, warning = FALSE}
 
 set.seed(49043)
-inTrain <- createDataPartition(lgbti_ML$open_at_work, 
+inTrain <- createDataPartition(lgbti_ML$open_at_work_bin, 
                                p = .7, 
                                list = FALSE, 
                                times = 1)
@@ -88,7 +91,7 @@ ctrl <- trainControl(method = "cv",
 # logistic regression 
 
 system.time(
-m_logit <- train(open_at_work ~ .,
+m_logit <- train(open_at_work_bin ~ .,
                       data = lgbti_train,
                       method="glm",family=binomial(),
                       trControl = ctrl,
@@ -99,7 +102,7 @@ m_logit <- train(open_at_work ~ .,
 # single decision tree - cart
 
 system.time(
-m_cart <- train(open_at_work ~ .,
+m_cart <- train(open_at_work_bin ~ .,
                       data = lgbti_train,
                       method = "rpart2",
                       trControl = ctrl,
@@ -116,7 +119,7 @@ m_cart <- train(open_at_work ~ .,
                               min.node.size = 10)
  
  system.time(
- m_rf <- train(open_at_work ~ .,
+ m_rf <- train(open_at_work_bin ~ .,
               data = lgbti_train,
               method = "ranger",
               trControl = ctrl,

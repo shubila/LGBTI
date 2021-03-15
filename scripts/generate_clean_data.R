@@ -106,14 +106,22 @@ A14_df <- lgbti_dta %>%
 lgbti_ML <- inner_join(lgbti_ML,A14_df, by = "RESPONDENT_ID")
 
 
-#---------------------------- set the dependent variable to binary by combining the open categories------------------
+#---------------------------- generate two versions of the dependent variable(collapsing the open categories), one binary and one multi class ------------------
 
 
 
-lgbti_ML$open_at_work <- fct_collapse(
+lgbti_ML$open_at_work_bin <- fct_collapse(
   lgbti_ML$open_at_work,
   Hide = "Hide being LGBTI",
   Open = c("Very open", "Selectively open")
+)
+
+
+lgbti_ML$open_at_work_multi <- fct_recode(
+  lgbti_ML$open_at_work,
+  Hide = "Hide being LGBTI",
+  Sel_open = "Selectively open",
+  Very_open = "Very open"
 )
 
 
@@ -121,7 +129,7 @@ lgbti_ML$open_at_work <- fct_collapse(
 
 # filter population of interest
 lgbti_ML <- lgbti_ML %>%
-  select(-one_of("A14","RESPONDENT_ID")) %>%
+  select(-one_of("A14","RESPONDENT_ID","open_at_work")) %>%
   drop_na() %>%
   droplevels()
 

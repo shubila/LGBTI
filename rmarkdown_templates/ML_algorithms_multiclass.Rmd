@@ -19,6 +19,7 @@ library(rpart.plot)
 library(pROC)
 library(DMwR)
 library(ROSE)
+library(MLmetrics)
 
 ```
 
@@ -37,6 +38,13 @@ lgbti_ML <- readRDS("../data/clean/lgbti_ML.rds")
 # Show dimensions
 dim(lgbti_ML)
 
+# drop the open_at_work_bin
+
+lgbti_ML <- lgbti_ML %>%
+  select(-one_of("open_at_work_bin"))
+
+# Show dimensions again
+dim(lgbti_ML)
 
 ```
 The data set contains `r dim(lgbti_ML)[1]` rows and `r dim(lgbti_ML)[2]` variables of which one is our dependent variable and the rest predictors.   
@@ -54,7 +62,7 @@ From what I have read it seems 80-20 and 70-30 are the most common splits.
 ```{r train_tes, warning = FALSE}
 
 set.seed(49043)
-inTrain <- createDataPartition(lgbti_ML$open_at_work, 
+inTrain <- createDataPartition(lgbti_ML$open_at_work_multi, 
                                p = .7, 
                                list = FALSE, 
                                times = 1)
@@ -81,29 +89,28 @@ We will probably discuss this over and over until we think we are using the righ
 set.seed(49043)
 ctrl <- trainControl(method = "cv",
                      number = 5,
-                     summaryFunction = twoClassSummary,
+                     summaryFunction = multiClassSummary,
                      classProbs = TRUE,
                      verboseIter = TRUE)
 
 # logistic regression 
 
-system.time(
-m_logit <- train(open_at_work ~ .,
-                      data = lgbti_train,
-                      method="glm",family=binomial(),
-                      trControl = ctrl,
-                      metric = "ROC"
-                    )
-)
+# system.time(
+# m_logit <- train(open_at_work ~ .,
+#                       data = lgbti_train,
+#                       method="glm",family=binomial(),
+#                       trControl = ctrl,
+#                       metric = "ROC"
+#                     )
+# )
 
 # single decision tree - cart
 
 system.time(
-m_cart <- train(open_at_work ~ .,
+m_cart <- train(open_at_work_multi ~ .,
                       data = lgbti_train,
                       method = "rpart2",
-                      trControl = ctrl,
-                      metric = "ROC")
+                      trControl = ctrl)
  )
  
 # random forest
@@ -116,12 +123,11 @@ m_cart <- train(open_at_work ~ .,
                               min.node.size = 10)
  
  system.time(
- m_rf <- train(open_at_work ~ .,
+ m_rf <- train(open_at_work_multi ~ .,
               data = lgbti_train,
               method = "ranger",
               trControl = ctrl,
-              tuneGrid = rf_grid,
-              metric = "ROC")
+              tuneGrid = rf_grid)
  )
  
  
@@ -155,7 +161,7 @@ m_cart <- train(open_at_work ~ .,
 
 
 ```{r}
-m_logit
+#m_logit
 m_cart
 m_rf 
 #m_xgb 
@@ -167,8 +173,8 @@ m_rf
 
 ```{r}
 
-p_logit <- predict(m_logit, newdata = lgbti_test, type = "prob")
-c_logit <- predict(m_logit, newdata = lgbti_test, type = "raw")
+# p_logit <- predict(m_logit, newdata = lgbti_test, type = "prob")
+# c_logit <- predict(m_logit, newdata = lgbti_test, type = "raw")
 
 p_cart <- predict(m_cart, newdata = lgbti_test, type = "prob")
 c_cart <- predict(m_cart, newdata = lgbti_test, type = "raw")
@@ -180,33 +186,44 @@ c_rf <- predict(m_rf, newdata = lgbti_test, type = "raw")
 # c_xgb <- predict(m_xgb, newdata = lgbti_test, type = "raw")
 
 
-roc_logit <- roc(lgbti_test$open_at_work, p_logit$Open) 
+#roc_logit <- roc(lgbti_test$open_at_work, p_logit$Open) 
 
-roc_cart <- roc(lgbti_test$open_at_work, p_cart$Open) 
-
-roc_rf  <- roc(lgbti_test$open_at_work, p_rf$Open) 
+# roc_cart <- multiclass.roc(lgbti_test$open_at_work_multi, p_cart,plot=TRUE) 
+# 
+# roc_rf  <- multiclass.roc(lgbti_test$open_at_work_multi, p_rf,plot=TRUE) 
 
 #roc_xgb  <- roc(lgbti_test$open_at_work, p_xgb$Open) 
 
 #plot the roc curves
 
-ggroc(list(
-  "logit" = roc_logit ,
-  "cart" = roc_cart,
-  "rf" = roc_rf
-  #"xgb" = roc_xgb
-)) +
-  geom_segment(aes(
-    x = 1,
-    xend = 0,
-    y = 0,
-    yend = 1
-  ),
-  color = "grey",
-  linetype = "dashed") +
-  labs(subtitle = "ROC-AUC for the four classification models")
+# ggroc(list(
+#   "cart" = roc_cart$rocs,
+#   "rf" = roc_rf$rocs
+# )) +
+#   geom_segment(aes(
+#     x = 1,
+#     xend = 0,
+#     y = 0,
+#     yend = 1
+#   ),
+#   color = "grey",
+#   linetype = "dashed") +
+#   labs(subtitle = "ROC-AUC for the two decision tree models multiclass")
+# 
+# plot(roc_cart$rocs,col="darkred")
+# plot(roc_rf$rocs,col="darkgreen",add=TRUE)
 
 
+# ggroc(roc_cart$rocs) +
+#   geom_segment(aes(
+#     x = 1,
+#     xend = 0,
+#     y = 0,
+#     yend = 1
+#   ),
+#   color = "grey",
+#   linetype = "dashed") +
+#   labs(subtitle = "ROC-AUC for the two decision tree models multiclass")
 
 
 
@@ -215,9 +232,9 @@ ggroc(list(
 
 ```{r}
 
-confusionMatrix(c_logit, lgbti_test$open_at_work, mode = "everything", positive = "Open")
-confusionMatrix(c_cart, lgbti_test$open_at_work, mode = "everything", positive = "Open")
-confusionMatrix(c_rf, lgbti_test$open_at_work, mode = "everything", positive = "Open")
+#confusionMatrix(c_logit, lgbti_test$open_at_work, mode = "everything", positive = "Open")
+confusionMatrix(c_cart, lgbti_test$open_at_work_multi, mode = "everything")
+confusionMatrix(c_rf, lgbti_test$open_at_work_multi, mode = "everything")
 
 #confusionMatrix(c_xgb, lgbti_test$open_at_work, mode = "everything", positive = "Open")
 
@@ -227,25 +244,27 @@ confusionMatrix(c_rf, lgbti_test$open_at_work, mode = "everything", positive = "
 
 ```{r}
 
-lgbti_test$Open_logit <- p_logit$Open
-lgbti_test$Open_cart  <- p_cart$Open
-lgbti_test$Open_rf  <- p_rf$Open
+#lgbti_test$Open_logit <- p_logit$Open
+lgbti_test$Very_open_cart  <- p_cart$Very_open
+lgbti_test$Sel_open_cart  <- p_cart$Sel_open
+
+
+lgbti_test$Very_open_rf  <- p_rf$Very_open
+lgbti_test$Sel_open_rf  <- p_rf$Sel_open
+lgbti_test$Hide  <- p_rf$Hide
+
+
 #lgbti_test$Open_xgb  <- p_xgb$Open
 
-ggplot(lgbti_test, aes(x = Open_logit)) + 
+ggplot(lgbti_test, aes(x = Very_open_cart)) + 
   geom_histogram(binwidth = .05) + 
-  facet_wrap(~ open_at_work) + 
-  xlab("Probability of Open for logit")
+  facet_wrap(~ open_at_work_multi) + 
+  xlab("Probability of Open for cart")
 
-ggplot(lgbti_test, aes(x = Open_cart)) + 
+ggplot(lgbti_test, aes(x = Very_open_rf )) + 
   geom_histogram(binwidth = .05) + 
-  facet_wrap(~ open_at_work) + 
-  xlab("Probability of Open for cart tree")
-
-ggplot(lgbti_test, aes(x = Open_rf)) + 
-  geom_histogram(binwidth = .05) + 
-  facet_wrap(~ open_at_work) + 
-  xlab("Probability of Open for Random forest")
+  facet_wrap(~ open_at_work_multi) + 
+  xlab("Probability of Very Open for Random forest")
 
 # ggplot(lgbti_test, aes(x = Open_xgb)) +
 #   geom_histogram(binwidth = .05) +
