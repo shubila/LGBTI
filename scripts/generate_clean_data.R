@@ -27,13 +27,17 @@ cols <-
   c(
     
     # section A
-     "A1","A7","A10","A10_1","A13","A14",
+    "A1", "A2", "A7", "A8", "A10","A10_1","A13","A14",
+    # section TR
+    "TR1",
+    # section IX
+    "IX3",
     # section B
     "B1","B2","B5",
     # section C
-    "C1_A","C1_B","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H","C7_A","C7_B","C8_A","C8_B","C8_C","C8_D",
+    "C1_A","C1_B","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H","C6_1_C", "C6_1_D","C7_A","C7_B","C8_A","C8_B","C8_C","C8_D",
     "C9_1","C10_A","C10_B","C10_1","C11_A","C11_B","C11_C","C11_D","C11_E","C11_F","C11_G","C11_H",
-    "C11_I","C12","C13_A_VALUE",
+    "C11_I","C12",
     # section D
     "D1","D2","D4",
     # section E
@@ -43,14 +47,14 @@ cols <-
     # section G
     "G1_A","G1_B","G1_C","G1_E","G1_H","G2",
     # section H
-    "H1","H2","H3","H4","H10","H12_A","H12_B","H12_C",
+    "H1","H2","H3","H4", "H5", "H10","H12_A","H12_B","H12_C",
     "H12_D","H12_E","H15_A","H15_B","H15_C","H15_D","H15_E","H15_F","H16",
-    "H17","H18","H19","H21_1","H21_2","H21_3","H21_4","H21_5",
+    "H17","H18","H19", "H20", "H21_1","H21_2","H21_3","H21_4","H21_5",
     # section I
-    "I1_A","I1_B","I1_C","I1_D","I1_E","I1_F","I1_G","I1_H","I1_I","I2_A",
+    "I1_A","I1_B","I1_C","I1_D","I1_E","I1_F","I1_G","I1_H","I1_I", "I2_A",
     "I2_B","I2_C","I2_D","I3_A","I3_B","I3_C","I3_D", "I3_E",
     # derived and other variables
-    "QST_TOTAL_DURATION","open_at_work","RESPONDENT_ID","RESPONDENT_CATEGORY"
+    "open_at_work","RESPONDENT_ID","RESPONDENT_CATEGORY"
   )
 
 # keep only the listed variables above
@@ -77,14 +81,34 @@ lgbti_ML <- lgbti_ML %>%
 #  Section A
 
 
-# set A13 to numeric
+# set A13 to numeric, take age from TR1, IX3 for trans and intersex where possible
 
-lgbti_ML$A13 <- as.numeric(as.character(lgbti_ML$A13))
+lgbti_ML$A13 <- as.character(lgbti_ML$A13)
+lgbti_ML$IX3  <- as.character(lgbti_ML$IX3)
+lgbti_ML$TR1  <- as.character(lgbti_ML$TR1)
 
-# make age groups out of A14 and keep the category "I have not told anybody"
+lgbti_ML <- lgbti_ML %>%
+  mutate(A13 = case_when(A13 == "Not applicable" & RESPONDENT_CATEGORY == "intersex" ~ IX3,
+                         TRUE  ~ A13),
+         A13 = case_when(A13 == "Not applicable" & RESPONDENT_CATEGORY == "trans" ~ TR1,
+                            TRUE  ~ A13)
+         )
 
-A14_df <- lgbti_dta %>%
-  select(RESPONDENT_ID,A14)%>%
+lgbti_ML$A13 <- as.numeric(lgbti_ML$A13)
+
+
+# make age groups out of A14, take age from TR1, IX3 for trans and intersex where possible,and keep the category "I have not told anybody"
+
+A14_df <- lgbti_dta %>% 
+  select(RESPONDENT_ID,RESPONDENT_CATEGORY,A14,IX3_1,TR2) %>%
+  mutate(A14 = case_when(A14 == -2 & RESPONDENT_CATEGORY == 7 ~ IX3_1,
+                         TRUE  ~ A14),
+         A14 = case_when(A14 == -2 & RESPONDENT_CATEGORY == 17 ~ TR2,
+                         TRUE  ~ A14)
+  )
+
+A14_df <- A14_df %>%
+  select(RESPONDENT_ID,A14) %>%
   mutate(A14_fct = as.factor(case_when(A14 == -998           ~ "I have not told anybody",
                                        A14 == -999           ~ NA_character_,
                                        A14 == -2             ~ NA_character_,
@@ -129,7 +153,7 @@ lgbti_ML$open_at_work_multi <- fct_recode(
 
 # filter population of interest
 lgbti_ML <- lgbti_ML %>%
-  select(-one_of("A14","RESPONDENT_ID","open_at_work")) %>%
+  select(-one_of("A14","RESPONDENT_ID","open_at_work","IX3","TR1")) %>%
   drop_na() %>%
   droplevels()
 
