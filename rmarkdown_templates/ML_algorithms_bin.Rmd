@@ -41,6 +41,8 @@ dim(lgbti_ML)
 
 lgbti_ML <- lgbti_ML %>%
   select(-one_of("open_at_work_multi"))
+# Show dimensions
+dim(lgbti_ML)
 
 
 ```
