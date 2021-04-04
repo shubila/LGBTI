@@ -35,9 +35,11 @@ cols <-
     # section B
     "B1","B2","B5",
     # section C
-    "C1_A","C1_B","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H","C6_1_C", "C6_1_D","C7_A","C7_B","C8_A","C8_B","C8_C","C8_D",
+    "C1_A","C1_B","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H", "C6_1_D","C7_B","C8_A","C8_B","C8_C","C8_D",
     "C9_1","C10_A","C10_B","C10_1","C11_A","C11_B","C11_C","C11_D","C11_E","C11_F","C11_G","C11_H",
     "C11_I","C12",
+    #"C6_1_C","C7_A",
+    
     # section D
     "D1","D2","D4",
     # section E
@@ -51,8 +53,7 @@ cols <-
     "H12_D","H12_E","H15_A","H15_B","H15_C","H15_D","H15_E","H15_F","H16",
     "H17","H18","H19", "H20", "H21_1","H21_2","H21_3","H21_4","H21_5",
     # section I
-    "I1_A","I1_B","I1_C","I1_D","I1_E","I1_F","I1_G","I1_H","I1_I", "I2_A",
-    "I2_B","I2_C","I2_D","I3_A","I3_B","I3_C","I3_D", "I3_E",
+    "I3_A","I3_B","I3_C","I3_D", "I3_E",
     # derived and other variables
     "open_at_work","RESPONDENT_ID","RESPONDENT_CATEGORY"
   )
@@ -61,18 +62,6 @@ cols <-
 
 lgbti_ML <- lgbti_sav %>% 
   select(all_of(cols))
-
-#----------------------------- rows ---------------------------------------------
-
-# Replace all "Do not know" for the factors of the dataset. 
-# For the variable H3 I found the factor levels "-999" and "-888" so converting "-888" to "Prefer not to say"
-
-lgbti_ML <- lgbti_ML %>%  
-  mutate(across(where(is.factor), ~ fct_recode(.,NULL = "Don’t know",
-                                                 NULL = "Do not know",
-                                                 NULL = "-999",
-                                                 NULL = "Missing",
-                                               `Prefer not to say`= "-888")))
 
 
 #--------------------------- sections ------------------------------------------
@@ -91,15 +80,15 @@ lgbti_ML <- lgbti_ML %>%
   mutate(A13 = case_when(A13 == "Not applicable" & RESPONDENT_CATEGORY == "intersex" ~ IX3,
                          TRUE  ~ A13),
          A13 = case_when(A13 == "Not applicable" & RESPONDENT_CATEGORY == "trans" ~ TR1,
-                            TRUE  ~ A13)
-         )
+                         TRUE  ~ A13)
+  )
 
 lgbti_ML$A13 <- as.numeric(lgbti_ML$A13)
 
 
 # make age groups out of A14, take age from TR1, IX3 for trans and intersex where possible,and keep the category "I have not told anybody"
 
-A14_df <- lgbti_dta %>% 
+A14_df <- lgbti_dta %>%
   select(RESPONDENT_ID,RESPONDENT_CATEGORY,A14,IX3_1,TR2) %>%
   mutate(A14 = case_when(A14 == -2 & RESPONDENT_CATEGORY == 7 ~ IX3_1,
                          TRUE  ~ A14),
@@ -125,7 +114,7 @@ A14_df <- A14_df %>%
                                        A14 >= 60 & A14 <= 64 ~  "60-64",
                                        A14 >= 65             ~    "65+",
                                        TRUE  ~ as.character(A14)))) %>%
-                                        select(RESPONDENT_ID,A14_fct)
+  select(RESPONDENT_ID,A14_fct)
 
 lgbti_ML <- inner_join(lgbti_ML,A14_df, by = "RESPONDENT_ID")
 
@@ -149,14 +138,64 @@ lgbti_ML$open_at_work_multi <- fct_recode(
 )
 
 
+
+
+#----------------------------- rows ---------------------------------------------
+
+# Replace all "Do not know" for the factors of the dataset. 
+# For the variable H3 I found the factor levels "-999" and "-888" so converting "-888" to "Prefer not to say"
+# Generate two versions of the dataset, one including "Does not apply to me" and one without
+
+
+# Generate the version which include "Does not apply to me"
+
+lgbti_ML_full <- lgbti_ML %>%  
+  mutate(across(where(is.factor), ~ fct_recode(.,NULL = "Don’t know",
+                                                 NULL = "Do not know",
+                                                 NULL = "-999",
+                                                 NULL = "Missing",
+                                                 NULL = "Prefer not to say",
+                                                 NULL = "-888")))
+
+# lgbti_ML_full <- lgbti_ML %>%  
+#   mutate(across(where(is.factor), ~ fct_recode(.,NULL = "Don’t know",
+#                                                NULL = "Do not know",
+#                                                NULL = "-999",
+#                                                NULL = "Missing",
+#                                                `Prefer not to say`= "-888")))
+
+
+
+# Generate the version which excludes "Does not apply to me"
+
+lgbti_ML_partial <- lgbti_ML %>%  
+  mutate(across(where(is.factor), ~ fct_recode(.,NULL = "Don’t know",
+                                                 NULL = "Do not know",
+                                                 NULL = "-999",
+                                                 NULL = "Missing",
+                                                 NULL = "Prefer not to say",
+                                                 NULL = "-888",
+                                                 NULL = "Does not apply to me")))
+
+
+
 # ------------------------- filter out population of interest, drop NA:s  and unused factor levels ----------------
 
 # filter population of interest
-lgbti_ML <- lgbti_ML %>%
-  select(-one_of("A14","RESPONDENT_ID","open_at_work","IX3","TR1")) %>%
+lgbti_ML_full <- lgbti_ML_full %>%
+  select(-one_of("RESPONDENT_ID","open_at_work","IX3","TR1","A14")) %>% 
   drop_na() %>%
   droplevels()
 
+lgbti_ML_partial <- lgbti_ML_partial %>%
+  select(-one_of("RESPONDENT_ID","open_at_work","IX3","TR1","A14")) %>% 
+  drop_na() %>%
+  droplevels()
+
+
+# ------------------------- save to folder ----------------
+
 saveRDS(lgbti_sav,"./data/clean/lgbti_sav.rds")
 saveRDS(lgbti_dta,"./data/clean/lgbti_dta.rds")
-saveRDS(lgbti_ML,"./data/clean/lgbti_ML.rds")
+saveRDS(lgbti_ML_full,"./data/clean/lgbti_ML_full.rds")
+saveRDS(lgbti_ML_partial,"./data/clean/lgbti_ML_partial.rds")
