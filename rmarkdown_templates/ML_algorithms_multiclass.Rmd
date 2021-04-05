@@ -66,6 +66,7 @@ inTrain <- createDataPartition(lgbti_ML$open_at_work_multi,
                                p = .7, 
                                list = FALSE, 
                                times = 1)
+inTrain <- as.integer(inTrain)
 
 lgbti_train <- lgbti_ML[inTrain,]
 lgbti_test  <- lgbti_ML[-inTrain,]
