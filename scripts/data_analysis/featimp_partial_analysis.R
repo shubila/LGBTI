@@ -22,10 +22,15 @@ rf_featimp_partial          <- rf_partial_featimp_ce$results
 logit_featimp_partial <- inner_join(logit_featimp_partial,rename_pred, by = c("feature" = "old"))
 rf_featimp_partial    <- inner_join(rf_featimp_partial,rename_pred,    by = c("feature" = "old"))
 
+# how many variables to include in the plot 
+
+number_vars <- 30
+
+
 # generate logit plot 
 
-plot_logit_featimp <- logit_featimp_partial2 %>%
-  slice_max(importance, n = 25) %>%
+plot_logit_featimp <- logit_featimp_partial %>%
+  slice_max(importance, n = number_vars) %>%
   ggplot(., aes(importance, reorder(new, importance))) +
   geom_point(size = 2) +
   geom_linerange(aes(xmin = importance.05, xmax = importance.95)) +
@@ -41,7 +46,7 @@ plot_logit_featimp <- logit_featimp_partial2 %>%
 # generate rf plot 
 
 plot_rf_featimp <- rf_featimp_partial %>%
-  slice_max(importance, n = 25) %>%
+  slice_max(importance, n = number_vars) %>%
   ggplot(., aes(importance, reorder(new, importance))) +
   geom_point(size = 2) +
   geom_linerange(aes(xmin = importance.05, xmax = importance.95)) +
