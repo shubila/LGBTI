@@ -35,10 +35,10 @@ cols <-
     # section B
     "B1","B2","B5",
     # section C
-    "C1_A","C1_B","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H", "C6_1_D","C7_B","C8_A","C8_B","C8_C","C8_D",
+    "C1_A","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H", "C6_1_D","C7_B","C8_A","C8_B","C8_C","C8_D",
     "C9_1","C10_A","C10_B","C10_1","C11_A","C11_B","C11_C","C11_D","C11_E","C11_F","C11_G","C11_H",
     "C11_I","C12",
-    #"C6_1_C","C7_A",
+    #"C6_1_C","C7_A","C1_B"
     
     # section D
     "D1","D2","D4",
@@ -108,16 +108,17 @@ A14_df <- A14_df %>%
                                        A14 >= 30 & A14 <= 34 ~  "30-34",
                                        A14 >= 35 & A14 <= 39 ~  "35-39",
                                        A14 >= 40 & A14 <= 44 ~  "40-44",
-                                       A14 >= 45 & A14 <= 49 ~  "45-49",
-                                       A14 >= 50 & A14 <= 54 ~  "50-54",
-                                       A14 >= 55 & A14 <= 59 ~  "55-59",
-                                       A14 >= 60 & A14 <= 64 ~  "60-64",
-                                       A14 >= 65             ~    "65+",
+                                       A14 >= 45             ~    "45+",
                                        TRUE  ~ as.character(A14)))) %>%
   select(RESPONDENT_ID,A14_fct)
 
 lgbti_ML <- inner_join(lgbti_ML,A14_df, by = "RESPONDENT_ID")
 
+# A14 >= 45 & A14 <= 49 ~  "45-49",
+# A14 >= 50 & A14 <= 54 ~  "50-54",
+# A14 >= 55 & A14 <= 59 ~  "55-59",
+# A14 >= 60 & A14 <= 64 ~  "60-64",
+# A14 >= 65             ~    "65+",
 
 #---------------------------- generate two versions of the dependent variable(collapsing the open categories), one binary and one multi class ------------------
 
@@ -142,12 +143,59 @@ lgbti_ML$open_at_work_multi <- fct_recode(
 
 #----------------------------- rows ---------------------------------------------
 
-# Replace all "Do not know" for the factors of the dataset. 
-# For the variable H3 I found the factor levels "-999" and "-888" so converting "-888" to "Prefer not to say"
+
+#  
+
+lgbti_ML <- lgbti_ML %>%
+  mutate(across(where(is.factor), ~ fct_recode(.,
+                  "Other"                  = "Other, please specify",
+                  "Only women"             = "Only women (or with one woman)",
+                  "Only men"               = "Only men (or with one man)",
+                  "Not same-sex partner"   = "I do not have a same-sex partner",
+                  "10+"                    = "More than 10 times",
+                  "At all times"           = "All of the time",
+                  "In paid work"           = "In paid work (including on paternity or other temporary leave)",
+                  "Christian_Catholic"     = "Christian <U+0096> Catholic",
+                  "Christian_Protestant"   = "Christian <U+0096> Protestant",
+                  "Christian_Orthodox"     = "Christian <U+0096> Orthodox",
+                  "Christian_Other"        = "Christian <U+0096> Other",
+          "Married/same-sex partner"       = "Married/ registered partnership with same-sex partner",
+          "Married/different-sex partner"  = "Married/ registered partnership with different sex partner",
+          "Unpaid/voluntary work"          = "In unpaid or voluntary work",
+          "Unable to work-health problems" = "Unable to work due to long-standing health problems",
+          "Military/Civilian service"      = "Compulsory military or civilian service",
+          "Domestic tasks"                 = "Fulfilling domestic tasks",
+          "No formal"                      = "No formal education",
+          "Primary"                        = "Primary education",
+          "Lower secondary"                = "Lower secondary education",
+          "Upper secondary"                = "Upper secondary education",
+          "Post-secondary"                 = "Post-secondary education other than college/university",
+          "Bachelor"                       = "Bachelor or equivalent",
+          "Master"                         = "Master or equivalent",
+          "Doctoral"                       = "Doctoral or equivalent",
+          "Not told"                       = "I have not told anybody",
+          "Yes,positive"                   = "Yes, in a positive way",
+          "Yes,positive/negative"          = "Yes, both in a positive and negative way",
+          "Yes,neutral/balanced"           = "Yes, in a neutral and balanced way",
+          "Yes,negative"                   = "Yes, in a negative way",
+          "Co-living with partner/spouse"  = "Living together with a partner /spouse",
+          "Relationship without co-living" = "Involved in a relationship without living together",
+          "No relationship/partner"        = "Have no relationship / do not have a partner",
+          "Other"                          = "Any other religion",
+          "More than half"                 = "More than half of the time",
+          "Less than half"                 = "Less than half of the time")
+        )
+    )
+  
+
+
+
 # Generate two versions of the dataset, one including "Does not apply to me" and one without
 
-
+# Replace all "Do not know" for the factors of the dataset. 
+# For the variable H3 I found the factor levels "-999" and "-888" so converting "-888" to "Prefer not to say"
 # Generate the version which include "Does not apply to me"
+
 
 lgbti_ML_full <- lgbti_ML %>%  
   mutate(across(where(is.factor), ~ fct_recode(.,NULL = "Don’t know",

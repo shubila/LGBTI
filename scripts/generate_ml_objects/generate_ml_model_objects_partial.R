@@ -9,12 +9,12 @@ rm(list = ls(all.names = TRUE))
 # load data
 lgbti_ML_partial <- readRDS("./data/clean/lgbti_ML_partial.rds")
 # Show dimensions
-dim(lgbti_ML_full)
+dim(lgbti_ML_partial)
+
+
 
 lgbti_ML_partial <- lgbti_ML_partial %>%
-  select(-one_of("open_at_work_multi"))%>%
-  filter(!A14_fct %in% c("55-59","60-64","50-54"))%>%
-  droplevels()
+  select(-one_of("open_at_work_multi"))
 # Show dimensions
 dim(lgbti_ML_partial)
 
@@ -80,7 +80,7 @@ system.time(
       method = "ranger",
       trControl = ctrl,
       tuneGrid = rf_grid,
-      # importance = "permutation",
+      importance = "permutation",
       metric = "ROC"
     )
 )
@@ -90,10 +90,10 @@ stopCluster(cl)
 
 # ------------------------- print results to console ----------------
 
-logit_train_output
-rf_train_output
+logit_train_output_partial
+rf_train_output_partial
 
-#plot(rf_train_output)
+plot(rf_train_output_partial)
 
 
 # ------------------------- save to folder----------------
@@ -104,7 +104,7 @@ save(rf_train_output_partial, file = "./output/ml_object/caret/partial/rf_partia
 
 # save the test/train data
 
-save(lgbti_partial_test,lgbti_partial_train, file = "./output/ml_object/caret/test_train_partial.RData")
+save(lgbti_partial_test,lgbti_partial_train, file = "./output/ml_object/caret/partial/test_train_partial_data.RData")
 
 
 

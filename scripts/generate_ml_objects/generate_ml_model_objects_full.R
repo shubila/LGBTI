@@ -78,7 +78,7 @@ system.time(
       method = "ranger",
       trControl = ctrl,
       tuneGrid = rf_grid,
-      # importance = "permutation",
+      importance = "permutation",
       metric = "ROC"
     )
 )
@@ -88,18 +88,18 @@ stopCluster(cl)
 
 # ------------------------- print results to console ----------------
 
-logit_train_output
-rf_train_output
+logit_train_output_full
+rf_train_output_full
 
 
 # ------------------------- save to folder----------------
 # save the models
 save(logit_train_output_full, file = "./output/ml_object/caret/full/logit_full_model.RData")
-save(rf_train_output__full,   file = "./output/ml_object/caret/full/rf_full_model.RData")
+save(rf_train_output_full,   file = "./output/ml_object/caret/full/rf_full_model.RData")
 
 # save the test/train data
 
-save(lgbti_full_test,lgbti_full_train, file = "./output/ml_object/caret/full/test_train_full.RData")
+save(lgbti_full_test,lgbti_full_train, file = "./output/ml_object/caret/full/test_train_full_data.RData")
 
 
 
