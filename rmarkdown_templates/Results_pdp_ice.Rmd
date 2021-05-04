@@ -1,0 +1,477 @@
+---
+title: "Results"
+author: "Shubila Balaile"
+date: '2021-04-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,fig.width=10, fig.height=6)
+#clear the global environment
+rm(list = ls(all.names = TRUE))
+
+library(tidyverse)
+library(readxl)
+library(tidyverse)
+library("mlr")
+library("iml")
+library("future")
+library("future.callr")
+library("ggplot2")
+library(gridExtra)
+
+
+
+# load partial featimp objects
+
+load("../output/ml_object/caret/partial/logit_partial_featimp_ce.RData")
+load("../output/ml_object/caret/partial/rf_partial_featimp_ce.RData")
+rename_pred <- read_excel("../documentation/Rename_predictors.xlsx",sheet = "Rename",col_names = TRUE)
+load("../output/ml_object/caret/partial/test_train_partial_data.RData")
+load("../output/ml_object/caret/partial/logit_partial_model.RData")
+load("../output/ml_object/caret/partial/rf_partial_model.RData")
+
+
+```
+
+## Results - Feature Importance
+
+
+The permutation feature importance algorithm based on Fisher, Rudin, and Dominici (2018):
+
+Input: Trained model f, feature matrix X, target vector y, error measure L(y,f).
+
+1.Estimate the original model error eorig = L(y, f(X)) (e.g. mean squared error)  
+2.For each feature j = 1,...,p do:  
+   Generate feature matrix Xperm by permuting feature j in the data X. This breaks the association between feature j and true outcome y.  
+  Estimate error eperm = L(Y,f(Xperm)) based on the predictions of the permuted data.    
+  Calculate permutation feature importance  
+  FIj= eperm/eorig.   
+  Alternatively, the difference can be used:   
+  FIj = eperm - eorig
+3.Sort features by descending FI.
+
+```{r featimp,echo=FALSE, fig.height = 6, fig.width = 8}
+
+# extract the results table from the featimp object
+
+logit_featimp_partial       <- logit_partial_featimp_ce$results
+
+rf_featimp_partial          <- rf_partial_featimp_ce$results 
+
+# join the new names of predictors
+
+logit_featimp_partial <- inner_join(logit_featimp_partial,rename_pred, by = c("feature" = "old"))
+rf_featimp_partial    <- inner_join(rf_featimp_partial,rename_pred,    by = c("feature" = "old"))
+
+# how many variables to include in the plot 
+
+number_vars <- 30
+
+
+# generate logit plot 
+
+plot_logit_featimp <- logit_featimp_partial %>%
+  slice_max(importance, n = number_vars) %>%
+  ggplot(., aes(importance, reorder(new, importance))) +
+  geom_point(size = 2) +
+  geom_linerange(aes(xmin = importance.05, xmax = importance.95)) +
+  ggtitle("logit") +
+  ylab("feature") +
+  theme(
+        axis.text.y = element_text(size = 8, face = "bold"),
+        plot.title = element_text(size = 10)
+        )
+
+
+
+# generate rf plot 
+
+plot_rf_featimp <- rf_featimp_partial %>%
+  slice_max(importance, n = number_vars) %>%
+  ggplot(., aes(importance, reorder(new, importance))) +
+  geom_point(size = 2) +
+  geom_linerange(aes(xmin = importance.05, xmax = importance.95)) +
+  ggtitle("randomforest") +
+  ylab("feature") +
+  theme(
+    axis.text.y = element_text(size = 8, face = "bold"),
+    plot.title = element_text(size = 10)
+  )
+
+
+
+(plot_featimp_ce <- gridExtra::grid.arrange(plot_logit_featimp, plot_rf_featimp, nrow = 1))
+
+
+```
+
+## Results - Partial Dependence Plot with ICE:s
+
+The partial function tells us for given value(s) of features S what the average marginal effect on the prediction is.
+
+```{r G1, echo=FALSE}
+
+#predictor_logit = Predictor$new(logit_train_output_partial, data = lgbti_partial_train, class = "Open")
+
+predictor_rf    = Predictor$new(rf_train_output_partial, data = lgbti_partial_train, class = "Open",type = "prob")
+
+
+pdp_rf    = FeatureEffect$new(predictor_rf, "G1_A", method = "pdp+ice") 
+
+sample_id <- sample(unique(pdp_rf$results$.id[pdp_rf$results$.type=="ice"]),300)
+
+plotdf_comb <- function(feature,lab) {
+  
+  
+  pdp_rf_ice    <- pdp_rf$results %>%
+  mutate(predictor = {{lab}}) %>%
+    filter(.id %in% sample_id) %>%
+    rename(variable = {{feature}}) 
+  
+  pdp_rf_pdp    <- pdp_rf$results %>%
+  mutate(predictor = {{lab}}) %>%
+  filter(.type == "pdp") %>%
+    rename(variable = {{feature}}) %>%
+    mutate(`.id` = -1L)
+    #mutate(`.id` = if_else(is.na(`.id`),-1L,`.id`))
+  
+  pdp_tab <- rbind.data.frame(pdp_rf_pdp,pdp_rf_ice)
+  return(pdp_tab)
+}
+
+plotdf_ind <- function(feature,lab) {
+  
+  
+  pdp_rf_ice    <- pdp_rf$results %>%
+    mutate(predictor = {{lab}}) %>%
+    filter(.id %in% sample_id) %>%
+    rename({{lab}} := {{feature}}) 
+  
+  pdp_rf_pdp    <- pdp_rf$results %>%
+    mutate(predictor = {{lab}}) %>%
+    filter(.type == "pdp") %>%
+    rename({{lab}} := {{feature}}) %>%
+    mutate(`.id` = -1L)
+  #mutate(`.id` = if_else(is.na(`.id`),-1L,`.id`))
+  
+  pdp_tab <- rbind.data.frame(pdp_rf_pdp,pdp_rf_ice)
+  return(pdp_tab)
+}
+
+
+G1_A <- plotdf_comb(feature = G1_A, lab = "open_fam")
+
+pdp_rf$set.feature("G1_B")
+ 
+G1_B <- plotdf_comb(feature = G1_B, lab = "open_friend")
+
+pdp_rf$set.feature("G1_C")
+
+G1_C <- plotdf_comb(feature = G1_C, lab = "open_neigh")
+
+pdp_rf$set.feature("G1_E")
+
+G1_E <- plotdf_comb(feature = G1_E, lab = "open_stud")
+
+pdp_rf$set.feature("G1_H")
+
+G1_H <- plotdf_comb(feature = G1_H, lab = "open_med")
+
+G1 <- rbind.data.frame(G1_A,G1_B,G1_C,G1_E,G1_H)
+
+ggplot(G1,
+       aes(
+         x = variable,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+ # facet_wrap(~ predictor) +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+  
+
+
+```
+
+
+```{r work, echo=FALSE}
+
+pdp_rf$set.feature("C7_B")
+
+C7_B <- plotdf_comb(feature = C7_B, lab = "work_supp")
+
+pdp_rf$set.feature("C6_1_D")
+
+C6_1_D <- plotdf_comb(feature = C6_1_D, lab = "work_gen_neg")
+
+work <- rbind.data.frame(C7_B,C6_1_D)
+
+ggplot(work,
+       aes(
+         x = variable,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  facet_wrap(~ predictor) +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+
+```
+
+
+```{r sch_hide, echo=FALSE}
+
+pdp_rf$set.feature("C8_B")
+
+sch_hide <- plotdf_ind(feature = C8_B, lab = "sch_hide")
+
+ggplot(sch_hide,
+       aes(
+         x = sch_hide,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+ 
+
+
+```
+
+
+
+
+
+```{r empl, echo=FALSE}
+
+pdp_rf$set.feature("H2")
+
+empl <- plotdf_ind(feature = H2, lab = "empl") %>%
+  mutate(empl = fct_recode(empl,
+                                "Paid work"   = "In paid work",
+                                "Self-empl"   = "Self-employed",
+                              "Unpaid work"   = "Unpaid/voluntary work",
+                              "Unemployed"    = "Unemployed",
+                              "Student"       = "Student or pupil",
+                              "Retired"       = "Retired",
+                              "Unable"        = "Unable to work-health problems",
+                            "Domestic task"   = "Domestic tasks",
+                            "Mili/Civil serv" = "Military/Civilian service",
+                            "Other"           = "Other"
+                           )
+         )
+
+
+ggplot(empl,
+       aes(
+         x = empl,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+```
+
+
+```{r avoid_hands, echo=FALSE}
+
+
+pdp_rf$set.feature("D1")
+
+avoid_hands <- plotdf_ind(feature = D1, lab = "avoid_hands")
+
+ggplot(avoid_hands,
+       aes(
+         x = avoid_hands,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+```
+
+
+
+
+```{r age, echo=FALSE}
+
+
+pdp_rf$set.feature("A1")
+
+age <- plotdf_ind(feature = A1, lab = "age")
+
+ggplot(age,
+       aes(
+         x = age,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+
+```
+
+
+
+
+
+
+```{r resp_cat, echo=FALSE}
+
+
+pdp_rf$set.feature("RESPONDENT_CATEGORY")
+
+resp_cat <- plotdf_ind(feature = RESPONDENT_CATEGORY, lab = "resp_cat")
+
+
+ggplot(resp_cat,
+       aes(
+         x = resp_cat,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+
+
+```
+
+
+
+
+```{r ctry, echo=FALSE}
+
+pdp_rf$set.feature("A10")
+
+ctry <- plotdf_ind(feature = A10, lab = "ctry") %>%
+  mutate(ctry = fct_recode(ctry,
+                                "AT"   = "Austria",
+                                "BE"   = "Belgium",
+                                "BG"   = "Bulgaria",
+                                "HR"   = "Croatia",
+                                "CY"   = "Cyprus",
+                                "CZ"   = "Czech Republic",
+                                "DK"   = "Denmark",
+                                "EE"   = "Estonia",
+                                "FI"   = "Finland",
+                                "FR"   = "France",
+                                "DE"   = "Germany",
+                                "GR"   = "Greece",
+                                "HU"   = "Hungary",
+                                "IE"   = "Ireland",
+                                "IT"   = "Italy",
+                                "LV"   = "Latvia",
+                                "LT"   = "Lithuania",
+                                "LU"   = "Luxembourg",
+                                "MT"   = "Malta",
+                                "NL"   = "Netherlands",
+                                "PL"   = "Poland",
+                                "PT"   = "Portugal",
+                                "RO"   = "Romania",
+                                "SK"   = "Slovakia",
+                                "SI"   = "Slovenia",
+                                "ES"   = "Spain",
+                                "SE"   = "Sweden",
+                                "UK"   = "United Kingdom",
+                                "MK"   = "North Macedonia",
+                                "RS"   = "Serbia"
+                            )
+         )
+
+
+ggplot(ctry,
+       aes(
+         x = ctry,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+
+
+```
+
+
+```{r satisf, echo=FALSE}
+
+pdp_rf$set.feature("G2")
+
+satisf <- plotdf_ind(feature = G2, lab = "satisf")
+
+ggplot(satisf ,
+       aes(
+         x = satisf ,
+         y = .value,
+         group = .id
+       )) +
+  geom_line(aes(group = .id, color = .type,
+                size = .type, alpha = .type)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("black","red")) +
+  scale_size_manual(values = c(0.06, 1.4)) +
+  scale_alpha_manual(values = c(0.2, 1))
+
+```
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
+
