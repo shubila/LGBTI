@@ -1,0 +1,435 @@
+---
+title: "Results"
+author: "Shubila Balaile"
+date: '2021-04-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,fig.width=10, fig.height=6)
+#clear the global environment
+rm(list = ls(all.names = TRUE))
+
+library(tidyverse)
+library(readxl)
+library(tidyverse)
+library("mlr")
+library("iml")
+library("future")
+library("future.callr")
+library("ggplot2")
+library(gridExtra)
+
+
+
+
+rename_pred <- read_excel("../documentation/Rename_predictors.xlsx",sheet = "Rename",col_names = TRUE)
+load("../output/ml_object/caret/partial/test_train_partial_data.RData")
+load("../output/ml_object/caret/partial/rf_partial_model.RData")
+
+
+```
+
+
+## Results - Partial Dependence Plot with centered ICE:s
+
+The partial function tells us for given value(s) of features S what the average marginal effect on the prediction is.
+
+```{r G1, echo=FALSE}
+
+
+predictor_rf    = Predictor$new(rf_train_output_partial, data = lgbti_partial_test, class = "Open",type = "prob")
+
+
+pdp_rf    = FeatureEffect$new(predictor_rf, "G1_A", method = "pdp+ice") 
+
+set.seed(2021)
+sample_id <- sample(unique(pdp_rf$results$.id[pdp_rf$results$.type=="ice"]),300)
+
+plotdf_comb <- function(feature,lab) {
+  
+  
+  pdp_rf_ice    <- pdp_rf$results %>%
+  mutate(predictor = {{lab}}) %>%
+    filter(.id %in% sample_id) %>%
+    rename(variable = {{feature}}) 
+  
+  pdp_rf_pdp    <- pdp_rf$results %>%
+  mutate(predictor = {{lab}}) %>%
+  filter(.type == "pdp") %>%
+    rename(variable = {{feature}}) %>%
+    mutate(`.id` = -1L)
+    #mutate(`.id` = if_else(is.na(`.id`),-1L,`.id`))
+  
+  pdp_tab <- rbind.data.frame(pdp_rf_pdp,pdp_rf_ice)
+  return(pdp_tab)
+}
+
+plotdf_ind <- function(feature,lab) {
+  
+  
+  pdp_rf_ice    <- pdp_rf$results %>%
+    mutate(predictor = {{lab}}) %>%
+    filter(.id %in% sample_id) %>%
+    rename({{lab}} := {{feature}}) 
+  
+  pdp_rf_pdp    <- pdp_rf$results %>%
+    mutate(predictor = {{lab}}) %>%
+    filter(.type == "pdp") %>%
+    rename({{lab}} := {{feature}}) %>%
+    mutate(`.id` = -1L)
+  #mutate(`.id` = if_else(is.na(`.id`),-1L,`.id`))
+  
+  pdp_tab <- rbind.data.frame(pdp_rf_pdp,pdp_rf_ice)
+  return(pdp_tab)
+}
+
+
+G1_A <- plotdf_comb(feature = G1_A, lab = "open_fam")
+
+pdp_rf$set.feature("G1_B")
+ 
+G1_B <- plotdf_comb(feature = G1_B, lab = "open_friend")
+
+pdp_rf$set.feature("G1_C")
+
+G1_C <- plotdf_comb(feature = G1_C, lab = "open_neigh")
+
+pdp_rf$set.feature("G1_E")
+
+G1_E <- plotdf_comb(feature = G1_E, lab = "open_stud")
+
+pdp_rf$set.feature("G1_H")
+
+G1_H <- plotdf_comb(feature = G1_H, lab = "open_med")
+
+G1 <- rbind.data.frame(G1_A,G1_B,G1_C,G1_E,G1_H)
+
+G1 <- G1 %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[variable=="None"])
+
+
+
+ggplot(G1[G1$.type == "ice", ],
+       aes(x = variable,
+           y = .value2,
+           group = .id)) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  facet_wrap( ~ predictor) +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  geom_line(data = G1[G1$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+
+  
+
+```
+
+
+```{r work, echo=FALSE}
+
+pdp_rf$set.feature("C7_B")
+
+C7_B <- plotdf_comb(feature = C7_B, lab = "work_supp")
+
+pdp_rf$set.feature("C6_1_D")
+
+C6_1_D <- plotdf_comb(feature = C6_1_D, lab = "work_gen_neg")
+
+work <- rbind.data.frame(C7_B,C6_1_D)
+work <- work %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[variable=="Never"])
+
+ggplot(work[work$.type == "ice", ],
+       aes(x = variable,
+           y = .value2,
+           group = .id)) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  facet_wrap( ~ predictor) +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  geom_line(data = work[work$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+
+```
+
+
+```{r sch_hide, echo=FALSE}
+
+pdp_rf$set.feature("C8_B")
+
+sch_hide <- plotdf_ind(feature = C8_B, lab = "sch_hide")
+
+sch_hide <- sch_hide %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[sch_hide =="Never"])
+
+ggplot(sch_hide[sch_hide$.type == "ice", ],
+       aes(
+         x = sch_hide,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  theme(plot.title = element_text(size = 10)) +
+  geom_line(data = sch_hide[sch_hide$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+ 
+
+
+```
+
+
+
+
+
+```{r empl, echo=FALSE}
+
+pdp_rf$set.feature("H2")
+
+empl <- plotdf_ind(feature = H2, lab = "empl") %>%
+  mutate(empl = fct_recode(empl,
+                                "Paid work"   = "In paid work",
+                                "Self-empl"   = "Self-employed",
+                              "Unpaid work"   = "Unpaid/voluntary work",
+                              "Unemployed"    = "Unemployed",
+                              "Student"       = "Student or pupil",
+                              "Retired"       = "Retired",
+                              "Unable"        = "Unable to work-health problems",
+                            "Domestic task"   = "Domestic tasks",
+                            "Mili/Civil serv" = "Military/Civilian service",
+                            "Other"           = "Other"
+                           )
+         )
+
+
+empl <- empl %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[empl =="Paid work"])
+
+ggplot(empl[empl$.type == "ice", ],
+       aes(
+         x = empl,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  #theme(axis.text.x = element_text(size = 7)) +
+  theme(text = element_text(size=8.75))+
+  geom_line(data = empl[empl$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+```
+
+
+```{r avoid_hands, echo=FALSE}
+
+
+pdp_rf$set.feature("D1")
+
+avoid_hands <- plotdf_ind(feature = D1, lab = "avoid_hands")
+
+
+avoid_hands <- avoid_hands %>%
+  group_by(predictor,.id)%>%
+  mutate(avoid_hands = fct_relevel(avoid_hands,"Not same-sex partner"))%>%
+  mutate(.value2 = .value - .value[avoid_hands =="Not same-sex partner"])
+#levels(avoid_hands$avoid_hands)
+
+ggplot(avoid_hands[avoid_hands$.type == "ice", ],
+       aes(
+         x = avoid_hands,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  #theme(text = element_text(size = 12)) +
+  geom_line(data = avoid_hands[avoid_hands$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+```
+
+
+
+
+```{r age, echo=FALSE}
+
+
+pdp_rf$set.feature("A1")
+
+age <- plotdf_ind(feature = A1, lab = "age")
+
+
+age <- age %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[age =="15-17"])
+
+
+ggplot(age[age$.type == "ice", ],
+       aes(
+         x = age,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+   #theme(text = element_text(size = 12)) +
+  geom_line(data = age[age$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+
+```
+
+
+
+
+
+
+```{r resp_cat, echo=FALSE}
+
+
+pdp_rf$set.feature("RESPONDENT_CATEGORY")
+
+resp_cat <- plotdf_ind(feature = RESPONDENT_CATEGORY, lab = "resp_cat")
+
+
+
+resp_cat <- resp_cat %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[resp_cat =="lesbian"])
+
+ggplot(resp_cat[resp_cat$.type == "ice", ],
+       aes(
+         x = resp_cat,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  #theme(text = element_text(size = 12)) +
+  geom_line(data = resp_cat[resp_cat$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+
+
+```
+
+
+
+
+```{r ctry, echo=FALSE}
+
+pdp_rf$set.feature("A10")
+
+ctry <- plotdf_ind(feature = A10, lab = "ctry") %>%
+  mutate(ctry = fct_recode(ctry,
+                                "AT"   = "Austria",
+                                "BE"   = "Belgium",
+                                "BG"   = "Bulgaria",
+                                "HR"   = "Croatia",
+                                "CY"   = "Cyprus",
+                                "CZ"   = "Czech Republic",
+                                "DK"   = "Denmark",
+                                "EE"   = "Estonia",
+                                "FI"   = "Finland",
+                                "FR"   = "France",
+                                "DE"   = "Germany",
+                                "GR"   = "Greece",
+                                "HU"   = "Hungary",
+                                "IE"   = "Ireland",
+                                "IT"   = "Italy",
+                                "LV"   = "Latvia",
+                                "LT"   = "Lithuania",
+                                "LU"   = "Luxembourg",
+                                "MT"   = "Malta",
+                                "NL"   = "Netherlands",
+                                "PL"   = "Poland",
+                                "PT"   = "Portugal",
+                                "RO"   = "Romania",
+                                "SK"   = "Slovakia",
+                                "SI"   = "Slovenia",
+                                "ES"   = "Spain",
+                                "SE"   = "Sweden",
+                                "UK"   = "United Kingdom",
+                                "MK"   = "North Macedonia",
+                                "RS"   = "Serbia"
+                            )
+         )
+
+
+ctry <- ctry %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[ctry =="AT"])
+
+
+ggplot(ctry[ctry$.type == "ice", ],
+       aes(
+         x = ctry,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  #theme(text = element_text(size = 12)) +
+  geom_line(data = ctry[ctry$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+
+
+```
+
+
+```{r satisf, echo=FALSE}
+
+pdp_rf$set.feature("G2")
+
+satisf <- plotdf_ind(feature = G2, lab = "satisf")
+
+satisf <- satisf %>%
+  group_by(predictor,.id)%>%
+  mutate(.value2 = .value - .value[satisf =="0 Very dissatisfied"])
+
+ggplot(satisf[satisf$.type == "ice", ],
+       aes(
+         x = satisf,
+         y = .value2,
+         group = .id
+       )) +
+  geom_line(alpha = 0.2, mapping = aes(group = .id)) +
+  geom_rug() +
+  ylab("predicted probability") +
+  #theme(text = element_text(size = 12)) +
+  geom_line(data = satisf[satisf$.type == "pdp", ],
+            size = 2,
+            color = "gold")
+
+```
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
+
