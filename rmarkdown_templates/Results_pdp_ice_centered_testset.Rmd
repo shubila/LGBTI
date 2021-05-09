@@ -20,6 +20,7 @@ library("future")
 library("future.callr")
 library("ggplot2")
 library(gridExtra)
+library(plotly)
 
 
 
@@ -111,13 +112,13 @@ G1 <- G1 %>%
   mutate(.value2 = .value - .value[variable=="None"])
 
 
-
+ggplotly(
 ggplot(G1[G1$.type == "ice", ],
        aes(x = variable,
            y = .value2,
            group = .id)) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   facet_wrap( ~ predictor) +
   ylab("predicted probability") +
   theme(plot.title = element_text(size = 10)) +
@@ -125,7 +126,7 @@ ggplot(G1[G1$.type == "ice", ],
             size = 2,
             color = "gold")
 
-
+)
   
 
 ```
@@ -146,19 +147,20 @@ work <- work %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[variable=="Never"])
 
+ggplotly(
 ggplot(work[work$.type == "ice", ],
        aes(x = variable,
            y = .value2,
            group = .id)) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   facet_wrap( ~ predictor) +
   ylab("predicted probability") +
   theme(plot.title = element_text(size = 10)) +
   geom_line(data = work[work$.type == "pdp", ],
             size = 2,
             color = "gold")
-
+)
 
 ```
 
@@ -173,6 +175,7 @@ sch_hide <- sch_hide %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[sch_hide =="Never"])
 
+ggplotly(
 ggplot(sch_hide[sch_hide$.type == "ice", ],
        aes(
          x = sch_hide,
@@ -180,13 +183,13 @@ ggplot(sch_hide[sch_hide$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
   theme(plot.title = element_text(size = 10)) +
   geom_line(data = sch_hide[sch_hide$.type == "pdp", ],
             size = 2,
             color = "gold")
-
+)
  
 
 
@@ -220,6 +223,7 @@ empl <- empl %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[empl =="Paid work"])
 
+ggplotly(
 ggplot(empl[empl$.type == "ice", ],
        aes(
          x = empl,
@@ -227,13 +231,14 @@ ggplot(empl[empl$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
   #theme(axis.text.x = element_text(size = 7)) +
   theme(text = element_text(size=8.75))+
   geom_line(data = empl[empl$.type == "pdp", ],
             size = 2,
             color = "gold")
+)
 
 ```
 
@@ -252,6 +257,7 @@ avoid_hands <- avoid_hands %>%
   mutate(.value2 = .value - .value[avoid_hands =="Not same-sex partner"])
 #levels(avoid_hands$avoid_hands)
 
+ggplotly(
 ggplot(avoid_hands[avoid_hands$.type == "ice", ],
        aes(
          x = avoid_hands,
@@ -259,12 +265,13 @@ ggplot(avoid_hands[avoid_hands$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
   #theme(text = element_text(size = 12)) +
   geom_line(data = avoid_hands[avoid_hands$.type == "pdp", ],
             size = 2,
             color = "gold")
+)
 
 ```
 
@@ -283,7 +290,7 @@ age <- age %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[age =="15-17"])
 
-
+ggplotly(
 ggplot(age[age$.type == "ice", ],
        aes(
          x = age,
@@ -291,13 +298,13 @@ ggplot(age[age$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
    #theme(text = element_text(size = 12)) +
   geom_line(data = age[age$.type == "pdp", ],
             size = 2,
             color = "gold")
-
+)
 
 ```
 
@@ -319,6 +326,7 @@ resp_cat <- resp_cat %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[resp_cat =="lesbian"])
 
+ggplotly(
 ggplot(resp_cat[resp_cat$.type == "ice", ],
        aes(
          x = resp_cat,
@@ -326,13 +334,13 @@ ggplot(resp_cat[resp_cat$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
   #theme(text = element_text(size = 12)) +
   geom_line(data = resp_cat[resp_cat$.type == "pdp", ],
             size = 2,
             color = "gold")
-
+)
 
 
 ```
@@ -384,7 +392,7 @@ ctry <- ctry %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[ctry =="AT"])
 
-
+ggplotly(
 ggplot(ctry[ctry$.type == "ice", ],
        aes(
          x = ctry,
@@ -392,13 +400,13 @@ ggplot(ctry[ctry$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
   #theme(text = element_text(size = 12)) +
   geom_line(data = ctry[ctry$.type == "pdp", ],
             size = 2,
             color = "gold")
-
+)
 
 
 ```
@@ -414,6 +422,7 @@ satisf <- satisf %>%
   group_by(predictor,.id)%>%
   mutate(.value2 = .value - .value[satisf =="0 Very dissatisfied"])
 
+ggplotly(
 ggplot(satisf[satisf$.type == "ice", ],
        aes(
          x = satisf,
@@ -421,12 +430,13 @@ ggplot(satisf[satisf$.type == "ice", ],
          group = .id
        )) +
   geom_line(alpha = 0.2, mapping = aes(group = .id)) +
-  geom_rug() +
+  geom_rug(alpha = 1/2, position = "jitter") +
   ylab("predicted probability") +
   #theme(text = element_text(size = 12)) +
   geom_line(data = satisf[satisf$.type == "pdp", ],
             size = 2,
             color = "gold")
+)
 
 ```
 
