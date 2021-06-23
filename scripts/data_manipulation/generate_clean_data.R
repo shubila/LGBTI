@@ -35,10 +35,10 @@ cols <-
     # section B
     "B1","B2","B5",
     # section C
-    "C1_A","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H", "C6_1_D","C7_B","C8_A","C8_B","C8_C","C8_D",
+    "C1_A","C1_C","C1_D","C1_E","C1_F","C1_G","C1_H", "C6_1_D","C7_B","C8_C","C8_D",
     "C9_1","C10_A","C10_B","C10_1","C11_A","C11_B","C11_C","C11_D","C11_E","C11_F","C11_G","C11_H",
     "C11_I","C12",
-    #"C6_1_C","C7_A","C1_B"
+    #"C6_1_C","C7_A","C1_B""C8_A","C8_B"
     
     # section D
     "D1","D2","D4",
@@ -243,7 +243,7 @@ lgbti_ML_partial <- lgbti_ML_partial %>%
 
 # ------------------------- save to folder ----------------
 
-saveRDS(lgbti_sav,"./data/clean/lgbti_sav.rds")
-saveRDS(lgbti_dta,"./data/clean/lgbti_dta.rds")
-saveRDS(lgbti_ML_full,"./data/clean/lgbti_ML_full.rds")
-saveRDS(lgbti_ML_partial,"./data/clean/lgbti_ML_partial.rds")
+# saveRDS(lgbti_sav,"./data/clean/lgbti_sav.rds")
+# saveRDS(lgbti_dta,"./data/clean/lgbti_dta.rds")
+saveRDS(lgbti_ML_full,"./data/clean/lgbti_ML_full_v2.rds")
+saveRDS(lgbti_ML_partial,"./data/clean/lgbti_ML_partial_v2.rds")
